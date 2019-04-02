@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Live Bracket Results</title>
+  <script src="https://vuejs.org/js/vue.js"></script>
+
+  <style>
+    body {
+      background: #124daa;
+      color: white;
+      text-align: center;
+      font-family: sans-serif;
+    }
+
+    h1 {
+      margin: 1em auto;
+      font-family: serif;
+    }
+
+    #app {
+      background: white;
+      border-radius: 5px;
+      color: #333;
+      width: 600px;
+      margin: 2em auto;
+      padding: 2em;
+    }
+
+    .competitor {
+      width: 50%;
+      display: inline-block;
+    }
+    .competitor h2 {
+      font-size: 6em;
+      margin: 0;
+    }
+    .competitor p {
+      margin: 0;
+    }
+
+    .status-bar {
+      background: #ccc;
+      margin: 2em 0;
+    }
+    .status-part {
+      background: #98bcf4;
+      padding: 1em 0;
+      display: inline-block;
+    }
+    .status-part:last-child {
+      background: #8fe5ba;
+    }
+
+    .commentaries .commentary {
+      font-size: 1.25em;
+      color: #999;
+    }
+    .commentaries .commentary:first-child {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .time-remaining {
+      color: #666;
+      margin-top: 4em;
+    }
+  </style>
+</head>
+<body>
+  <h1>EMOJIDOME!!!</h1>
+
+  <div id="app">
+    <div class="competitor-container">
+      <div v-for="competitor in competitors" class="competitor">
+        <h2>{{competitor.competitor}}</h2>
+        <p>{{competitor.score}}</p>
+      </div>
+    </div>
+    <div class="status-bar">
+      <div
+        class="status-part"
+        v-for="percentage in percentages"
+        v-bind:style="{ width: percentage + '%' }">
+        {{percentage}}%
+      </div>
+    </div>
+
+    <div class="commentaries">
+      <p class="commentary" v-for="commentary in commentaries">{{commentary}}</p>
+    </div>
+
+    <p class="time-remaining">Ends in {{timeRemaining}} seconds</p>
+    <a href="https://xkcd.com/2131/">Data from XKCD #2131</a>
+  </div>
+
+  <script>
+    let socket;
+
+    new Vue({
+      el: '#app',
+      data: {
+        commentaries: '',
+        competitors: [],
+        endTime: 0,
+        timeRemaining: 0,
+      },
+      computed: {
+        totalVotes: function () {
+          return this.competitors.reduce((total, val) => total + val.score, 0);
+        },
+        percentages: function () {
+          return this.competitors.map((competitor) => Math.round((competitor.score / this.totalVotes) * 100));
+        }
+      },
+      methods: {
+        updateTimeRemaining: function () {
+          this.timeRemaining = Math.round((this.endTime - Date.now()) / 1000);
+        }
+      },
+      created: function () {
+        socket = new WebSocket('wss://emojidome.xkcd.com/2131/socket');
+
+        socket.onmessage = ({ data }) => {
+          const parsed = JSON.parse(data);
+
+          switch (parsed.event) {
+            case 'score':
+              this.competitors = parsed.scores;
+              break;
+            case 'start':
+              const { current } = parsed.bracket;
+
+              this.commentaries = current.extra.commentary;
+              this.competitors = current.game;
+              this.endTime = Date.parse(current.extra.end_time);
+              break;
+            default:
+              // no op
+              break;
+          }
+        };
+
+        window.setInterval(() => {
+          this.updateTimeRemaining();
+        }, 1000);
+      }
+    })
+  </script>
+</body>
+
+</html>
+
+<!--
+    START: {"event":"start","bracket":{"upcoming":[["🍕","🍣"],["🦑","🌋"],["🌃","🚝"],["🛸","🌌"],["🔥","🏓"],["🥌","🎻"],["💾","📚"],["🏹","🧬"]],"current":{"extra":{"commentary":["Neither of these really go well with a bonnet.","🍍 is dedicating this match to someone very special in their lives."],"end_time":"2019-04-02T06:07:20.91629214Z"},"game":[{"score":17141,"competitor":"🍍"},{"score":19237,"competitor":"🐝"}]},"played":[[{"extra":{"commentary":["You obviously like owls.","This staring contest began hours before the match started.","Someone has to win this match and someone has to lose, but you have to acknowledge the pure sportsmanship of these competitors."],"end_time":"2019-04-02T05:41:20.915165856Z"},"game":[{"score":38553,"competitor":"🐙"},{"score":204094,"competitor":"🦉"}]}, ... competitions], ...brackets ]}}
+
+    SCORE: {"event":"score","scores":[{"score":21048,"competitor":"🍍"},{"score":25352,"competitor":"🐝"}]}
+-->
